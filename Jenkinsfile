@@ -16,7 +16,7 @@ pipeline {
 
                 sh '''
                     podman run --rm \
-                        -v "$PWD:/app:Z" \
+                        -v /home/shahariaranit/.local/share/containers/storage/volumes/jenkins_home/_data/workspace/devops-pipeline:/app \
                         -w /app \
                         python:3.12-alpine \
                         python3 application.py
@@ -31,7 +31,7 @@ pipeline {
                 sh '''
                     podman build \
                         -t devops-pipeline:${BUILD_NUMBER} \
-                        .
+                        /home/shahariaranit/.local/share/containers/storage/volumes/jenkins_home/_data/workspace/devops-pipeline
                 '''
             }
         }
