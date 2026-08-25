@@ -5,22 +5,41 @@ pipeline {
 
         stage('Checkout') {
             steps {
+                echo 'Checking out source code from GitHub...'
                 checkout scm
             }
         }
 
         stage('Test') {
             steps {
-                sh 'python3 --version'
-                sh 'python3 application.py'
+                echo 'Running application test...'
+
+                sh '''
+                    podman run --rm \
+                        -v "$PWD:/app:Z" \
+                        -w /app \
+                        python:3.12-alpine \
+                        python3 application.py
+                '''
             }
         }
 
         stage('Build Image') {
             steps {
-                sh 'podman build -t devops-pipeline:${BUILD_NUMBER} .'
+                echo 'Building container image...'
+
+                sh '''
+                    podman build \
+                        -t devops-pipeline:${BUILD_NUMBER} \
+                        .
+                '''
             }
         }
 
+        stage('Verify Image') {
+            steps {
+                sh 'podman images | grep devops-pipeline'
+            }
+        }
     }
 }
