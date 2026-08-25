@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    options {
-        skipDefaultCheckout(true)
-    }
-
     stages {
 
         stage('Checkout') {
@@ -20,7 +16,7 @@ pipeline {
 
                 sh '''
                     podman run --rm \
-                        -v /home/shahariaranit/.local/share/containers/storage/volumes/jenkins_home/_data/workspace/devops-pipeline:/app \
+                        -v "$PWD:/app" \
                         -w /app \
                         python:3.12-alpine \
                         python3 application.py
@@ -34,12 +30,16 @@ pipeline {
 
                 sh '''
                     rm -rf /build-context/*
-                    cp -r "$WORKSPACE"/. /build-context/
-                '''
 
-                echo 'Building container image...'
+                    cp Dockerfile /build-context/
+                    cp application.py /build-context/
+                    cp test_application.py /build-context/
 
-                sh '''
+                    echo "Build context:"
+                    ls -la /build-context
+
+                    echo "Building container image..."
+
                     podman build \
                         -t devops-pipeline:${BUILD_NUMBER} \
                         /build-context
@@ -49,7 +49,11 @@ pipeline {
 
         stage('Verify Image') {
             steps {
-                sh 'podman images | grep devops-pipeline'
+                echo 'Verifying image...'
+
+                sh '''
+                    podman images | grep devops-pipeline
+                '''
             }
         }
     }
