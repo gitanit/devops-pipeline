@@ -2,10 +2,25 @@ pipeline {
     agent any
 
     stages {
-        stage('Hello') {
+
+        stage('Checkout') {
             steps {
-                echo 'Hello from Jenkins!'
+                checkout scm
             }
         }
+
+        stage('Test') {
+            steps {
+                sh 'python3 --version'
+                sh 'python3 application.py'
+            }
+        }
+
+        stage('Build Image') {
+            steps {
+                sh 'podman build -t devops-pipeline:${BUILD_NUMBER} .'
+            }
+        }
+
     }
 }
