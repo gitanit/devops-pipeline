@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        BUILD_CONTEXT = "/build-context"
+        BUILD_CONTEXT = "/home/shahariaranit/podman-build-context"
         IMAGE_NAME = "devops-pipeline"
     }
 
@@ -22,8 +22,6 @@ pipeline {
                 sh '''
                     set -e
 
-                    echo "Preparing test context..."
-
                     rm -f ${BUILD_CONTEXT}/application.py
                     rm -f ${BUILD_CONTEXT}/test_application.py
 
@@ -32,8 +30,6 @@ pipeline {
 
                     echo "Test context:"
                     ls -la ${BUILD_CONTEXT}
-
-                    echo "Running Python application..."
 
                     podman run --rm \
                         -v ${BUILD_CONTEXT}:/app \
@@ -51,14 +47,10 @@ pipeline {
                 sh '''
                     set -e
 
-                    echo "Preparing Docker build context..."
-
                     cp Dockerfile ${BUILD_CONTEXT}/
 
                     echo "Build context:"
                     ls -la ${BUILD_CONTEXT}
-
-                    echo "Building image..."
 
                     podman build \
                         -t ${IMAGE_NAME}:${BUILD_NUMBER} \
@@ -69,12 +61,10 @@ pipeline {
 
         stage('Verify Image') {
             steps {
-                echo 'Verifying built image...'
+                echo 'Verifying image...'
 
                 sh '''
                     set -e
-
-                    podman images
 
                     podman image inspect \
                         ${IMAGE_NAME}:${BUILD_NUMBER} \
@@ -84,6 +74,8 @@ pipeline {
                     echo "IMAGE BUILD SUCCESSFUL"
                     echo "Image: ${IMAGE_NAME}:${BUILD_NUMBER}"
                     echo "======================================"
+
+                    podman images
                 '''
             }
         }
@@ -91,20 +83,11 @@ pipeline {
 
     post {
         success {
-            echo '''
-======================================
-CI PIPELINE SUCCESSFUL
-======================================
-'''
+            echo 'CI PIPELINE SUCCESSFUL 🎉'
         }
 
         failure {
-            echo '''
-======================================
-CI PIPELINE FAILED
-======================================
-Check the stage above for the error.
-'''
+            echo 'CI PIPELINE FAILED'
         }
     }
 }
