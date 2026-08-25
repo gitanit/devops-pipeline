@@ -1,27 +1,42 @@
 pipeline {
     agent any
 
+    environment {
+        BUILD_CONTEXT = "/build-context"
+        IMAGE_NAME = "devops-pipeline"
+    }
+
     stages {
+
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code from GitHub...'
+                checkout scm
+            }
+        }
 
         stage('Test') {
             steps {
                 echo 'Running application test...'
 
                 sh '''
+                    set -e
+
                     echo "Preparing test context..."
 
-                    rm -rf /build-context/*
+                    rm -f ${BUILD_CONTEXT}/application.py
+                    rm -f ${BUILD_CONTEXT}/test_application.py
 
-                    cp application.py /build-context/
-                    cp test_application.py /build-context/
+                    cp application.py ${BUILD_CONTEXT}/
+                    cp test_application.py ${BUILD_CONTEXT}/
 
                     echo "Test context:"
-                    ls -la /build-context
+                    ls -la ${BUILD_CONTEXT}
 
                     echo "Running Python application..."
 
                     podman run --rm \
-                        -v /home/shahariaranit/podman-build-context:/app \
+                        -v ${BUILD_CONTEXT}:/app \
                         -w /app \
                         python:3.12-alpine \
                         python3 application.py
@@ -34,30 +49,41 @@ pipeline {
                 echo 'Building container image...'
 
                 sh '''
+                    set -e
+
                     echo "Preparing Docker build context..."
 
-                    cp Dockerfile /build-context/
+                    cp Dockerfile ${BUILD_CONTEXT}/
 
                     echo "Build context:"
-                    ls -la /build-context
+                    ls -la ${BUILD_CONTEXT}
 
                     echo "Building image..."
 
                     podman build \
-                        -t devops-pipeline:${BUILD_NUMBER} \
-                        /home/shahariaranit/podman-build-context
+                        -t ${IMAGE_NAME}:${BUILD_NUMBER} \
+                        ${BUILD_CONTEXT}
                 '''
             }
         }
 
         stage('Verify Image') {
             steps {
-                echo 'Verifying container image...'
+                echo 'Verifying built image...'
 
                 sh '''
-                    echo "Available devops-pipeline images:"
+                    set -e
 
-                    podman images | grep devops-pipeline
+                    podman images
+
+                    podman image inspect \
+                        ${IMAGE_NAME}:${BUILD_NUMBER} \
+                        > /dev/null
+
+                    echo "======================================"
+                    echo "IMAGE BUILD SUCCESSFUL"
+                    echo "Image: ${IMAGE_NAME}:${BUILD_NUMBER}"
+                    echo "======================================"
                 '''
             }
         }
@@ -65,16 +91,20 @@ pipeline {
 
     post {
         success {
-            echo '======================================'
-            echo 'CI PIPELINE COMPLETED SUCCESSFULLY!'
-            echo '======================================'
+            echo '''
+======================================
+CI PIPELINE SUCCESSFUL
+======================================
+'''
         }
 
         failure {
-            echo '======================================'
-            echo 'CI PIPELINE FAILED'
-            echo 'Check the stage above for the error.'
-            echo '======================================'
+            echo '''
+======================================
+CI PIPELINE FAILED
+======================================
+Check the stage above for the error.
+'''
         }
     }
 }
