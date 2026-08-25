@@ -15,8 +15,13 @@ pipeline {
                 echo 'Running application test...'
 
                 sh '''
+                    rm -rf /build-context/*
+
+                    cp application.py /build-context/
+                    cp test_application.py /build-context/
+
                     podman run --rm \
-                        -v "$PWD:/app" \
+                        -v /build-context:/app \
                         -w /app \
                         python:3.12-alpine \
                         python3 application.py
