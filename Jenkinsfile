@@ -26,12 +26,19 @@ pipeline {
 
         stage('Build Image') {
             steps {
+                echo 'Preparing build context...'
+
+                sh '''
+                    rm -rf /build-context/*
+                    cp -r "$WORKSPACE"/. /build-context/
+                '''
+
                 echo 'Building container image...'
 
                 sh '''
                     podman build \
                         -t devops-pipeline:${BUILD_NUMBER} \
-                        /home/shahariaranit/.local/share/containers/storage/volumes/jenkins_home/_data/workspace/devops-pipeline
+                        /build-context
                 '''
             }
         }
