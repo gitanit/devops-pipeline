@@ -12,24 +12,21 @@ permissions:
 jobs:
 
   # ==========================================
-  # 1. Flake8 and Pytest
+  # 1. Flake8 + Pytest
   # ==========================================
   build:
     name: Flake8 and Pytest
     runs-on: [self-hosted, Linux, X64]
 
     steps:
-      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Set up Python
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      # Inspect runner
       - name: Inspect runner
         run: |
           echo "Operating System:"
@@ -50,7 +47,6 @@ jobs:
           echo "Repository files:"
           ls -la
 
-      # Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -60,7 +56,6 @@ jobs:
             pip install -r requirements.txt
           fi
 
-      # Flake8
       - name: Lint with Flake8
         run: |
           flake8 . \
@@ -76,7 +71,6 @@ jobs:
             --max-line-length=127 \
             --statistics
 
-      # Pytest
       - name: Test with Pytest
         run: |
           pytest
@@ -91,11 +85,9 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
-      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Verify SonarQube configuration
       - name: Verify SonarQube configuration
         run: |
           echo "Current directory:"
@@ -107,11 +99,15 @@ jobs:
           echo "SonarQube configuration:"
           cat sonar-project.properties
 
-      # Run SonarQube
       - name: SonarQube Scan
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "ERROR: SONAR_TOKEN is not configured"
+            exit 1
+          fi
+
           sonar-scanner \
             -Dsonar.login="$SONAR_TOKEN"
 
@@ -125,16 +121,13 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
-      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Check Trivy installation
       - name: Check Trivy
         run: |
           trivy --version
 
-      # Scan source filesystem
       - name: Trivy Filesystem Scan
         run: |
           trivy fs . \
@@ -151,29 +144,25 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
-      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Check Podman
       - name: Check Podman
         run: |
           podman --version
+          podman info
 
-      # Build image
       - name: Build container image
         run: |
           podman build \
             -t localhost/devops-pipeline:${{ github.sha }} \
             .
 
-      # Show image
       - name: Show container image
         run: |
           podman images | grep devops-pipeline
 
-      # Test container
-      - name: Run container test
+      - name: Test container
         run: |
           podman run --rm \
             localhost/devops-pipeline:${{ github.sha }}
@@ -188,16 +177,10 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
-      # Checkout repository
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # Check Trivy
       - name: Check Trivy
         run: |
           trivy --version
 
-      # Scan container image
       - name: Scan container image
         run: |
           trivy image \
@@ -216,7 +199,30 @@ jobs:
 
     steps:
 
-      # Login to Docker Hub
+      # ----------------------------------------
+      # Verify secrets exist without exposing them
+      # ----------------------------------------
+      - name: Check Docker Hub credentials
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "$DOCKERHUB_USERNAME" ]; then
+            echo "ERROR: DOCKERHUB_USERNAME is not configured"
+            exit 1
+          fi
+
+          if [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "ERROR: DOCKERHUB_TOKEN is not configured"
+            exit 1
+          fi
+
+          echo "Docker Hub username is configured"
+          echo "Docker Hub token is configured"
+
+      # ----------------------------------------
+      # Login
+      # ----------------------------------------
       - name: Login to Docker Hub
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -226,7 +232,9 @@ jobs:
             --username "$DOCKERHUB_USERNAME" \
             --password-stdin
 
-      # Tag image with Git commit SHA and latest
+      # ----------------------------------------
+      # Tag image
+      # ----------------------------------------
       - name: Tag image
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -239,20 +247,26 @@ jobs:
             localhost/devops-pipeline:${{ github.sha }} \
             docker.io/$DOCKERHUB_USERNAME/my-repository:latest
 
+      # ----------------------------------------
       # Show tags
-      - name: Show Docker Hub image tags
+      # ----------------------------------------
+      - name: Show Docker Hub image
         run: |
           podman images | grep my-repository
 
-      # Push SHA tag
-      - name: Push SHA image
+      # ----------------------------------------
+      # Push commit SHA image
+      # ----------------------------------------
+      - name: Push commit image
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           podman push \
             docker.io/$DOCKERHUB_USERNAME/my-repository:${{ github.sha }}
 
-      # Push latest tag
+      # ----------------------------------------
+      # Push latest image
+      # ----------------------------------------
       - name: Push latest image
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -260,7 +274,9 @@ jobs:
           podman push \
             docker.io/$DOCKERHUB_USERNAME/my-repository:latest
 
+      # ----------------------------------------
       # Logout
+      # ----------------------------------------
       - name: Logout from Docker Hub
         run: |
           podman logout docker.io
