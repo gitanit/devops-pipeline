@@ -12,25 +12,21 @@ permissions:
 jobs:
 
   # ==========================================
-  # 1. Lint and Test
+  # 1. Flake8 and Pytest
   # ==========================================
   build:
     name: Flake8 and Pytest
     runs-on: [self-hosted, Linux, X64]
 
     steps:
-
-      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Set up Python
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      # Inspect runner
       - name: Inspect runner
         run: |
           echo "Operating System:"
@@ -51,7 +47,6 @@ jobs:
           echo "Files in repository:"
           ls -la
 
-      # Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -61,7 +56,6 @@ jobs:
             pip install -r requirements.txt
           fi
 
-      # Flake8
       - name: Lint with Flake8
         run: |
           flake8 . \
@@ -77,14 +71,13 @@ jobs:
             --max-line-length=127 \
             --statistics
 
-      # Pytest
       - name: Test with Pytest
         run: |
           pytest
 
 
   # ==========================================
-  # 2. SonarQube Analysis
+  # 2. SonarQube
   # ==========================================
   sonarqube:
     name: SonarQube Analysis
@@ -92,12 +85,9 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
-
-      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Verify SonarQube configuration
       - name: Verify SonarQube configuration
         run: |
           echo "Current directory:"
@@ -109,32 +99,16 @@ jobs:
           echo "SonarQube configuration:"
           cat sonar-project.properties
 
-      # Check SonarQube token
-      - name: Check SonarQube token
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          if [ -n "$SONAR_TOKEN" ]; then
-            echo "SONAR_TOKEN is available"
-          else
-            echo "SONAR_TOKEN is NOT available"
-            exit 1
-          fi
-
-      # Run SonarScanner
       - name: SonarQube Scan
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           sonar-scanner \
-            -Dsonar.projectKey=devops-pipeline \
-            -Dsonar.projectName=devops-pipeline \
-            -Dsonar.sources=. \
-            -Dsonar.host.url=http://localhost:9000
+            -Dsonar.login="$SONAR_TOKEN"
 
 
   # ==========================================
-  # 3. Trivy Security Scan
+  # 3. Trivy Filesystem Scan
   # ==========================================
   trivy:
     name: Trivy Security Scan
@@ -142,21 +116,48 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
-
-      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Verify Trivy installation
       - name: Check Trivy
         run: |
           trivy --version
 
-      # Trivy filesystem scan
-      - name: Trivy Security Scan
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: "fs"
-          scan-ref: "."
-          severity: "HIGH,CRITICAL"
-          ignore-unfixed: true
+      - name: Trivy Filesystem Scan
+        run: |
+          trivy fs . \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed
+
+
+  # ==========================================
+  # 4. Build Container Image
+  # ==========================================
+  container:
+    name: Build Container Image
+    needs: trivy
+    runs-on: [self-hosted, Linux, X64]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Podman
+        run: |
+          podman --version
+          podman info
+
+      - name: Build container image
+        run: |
+          podman build \
+            -t localhost/devops-pipeline:${{ github.sha }} \
+            .
+
+      - name: List container image
+        run: |
+          podman images | grep devops-pipeline
+
+      - name: Run container test
+        run: |
+          podman run --rm \
+            localhost/devops-pipeline:${{ github.sha }}
