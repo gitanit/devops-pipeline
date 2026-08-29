@@ -11,21 +11,22 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Flake8 and Pytest
+    runs-on: self-hosted
 
     steps:
-      # 1. Checkout the repository
+      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Install Python
+      # 2. Set up Python
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      # 3. Inspect the GitHub-hosted Ubuntu runner
-      - name: Inspect GitHub Runner
+      # 3. Inspect runner
+      - name: Inspect runner
         run: |
           echo "Operating System:"
           uname -a
@@ -55,13 +56,59 @@ jobs:
             pip install -r requirements.txt
           fi
 
-      # 5. Lint the Python code
-      - name: Lint with flake8
+      # 5. Flake8
+      - name: Lint with Flake8
         run: |
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          flake8 . \
+            --count \
+            --select=E9,F63,F7,F82 \
+            --show-source \
+            --statistics
 
-      # 6. Run unit tests
-      - name: Test with pytest
+          flake8 . \
+            --count \
+            --exit-zero \
+            --max-complexity=10 \
+            --max-line-length=127 \
+            --statistics
+
+      # 6. Pytest
+      - name: Test with Pytest
         run: |
           pytest
+      # 7. Security Scan
+  sonarqube:
+    name: SonarQube Analysis
+    needs: build
+    runs-on: self-hosted
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Run SonarScanner
+      - name: SonarQube Scan
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          sonar-scanner
+
+  trivy:
+    name: Trivy Security Scan
+    needs: sonarqube
+    runs-on: self-hosted
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Trivy filesystem scan
+      - name: Security Scan with Trivy
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: true
