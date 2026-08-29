@@ -92,8 +92,11 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          sonar-scanner
-
+          sonar-scanner \
+            -Dsonar.projectKey=devops-pipeline \
+            -Dsonar.projectName=devops-pipeline \
+            -Dsonar.sources=. \
+            -Dsonar.host.url=http://localhost:9000
   trivy:
     name: Trivy Security Scan
     needs: sonarqube
