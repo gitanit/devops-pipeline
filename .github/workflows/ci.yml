@@ -19,14 +19,17 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Set up Python
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
+      # Inspect runner
       - name: Inspect runner
         run: |
           echo "Operating System:"
@@ -44,9 +47,10 @@ jobs:
           echo "Working directory:"
           pwd
 
-          echo "Files in repository:"
+          echo "Repository files:"
           ls -la
 
+      # Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -56,6 +60,7 @@ jobs:
             pip install -r requirements.txt
           fi
 
+      # Flake8
       - name: Lint with Flake8
         run: |
           flake8 . \
@@ -71,6 +76,7 @@ jobs:
             --max-line-length=127 \
             --statistics
 
+      # Pytest
       - name: Test with Pytest
         run: |
           pytest
@@ -85,9 +91,11 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Verify SonarQube configuration
       - name: Verify SonarQube configuration
         run: |
           echo "Current directory:"
@@ -99,6 +107,7 @@ jobs:
           echo "SonarQube configuration:"
           cat sonar-project.properties
 
+      # Run SonarQube
       - name: SonarQube Scan
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -116,13 +125,16 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Check Trivy installation
       - name: Check Trivy
         run: |
           trivy --version
 
+      # Scan source filesystem
       - name: Trivy Filesystem Scan
         run: |
           trivy fs . \
@@ -139,25 +151,116 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Check Podman
       - name: Check Podman
         run: |
           podman --version
-          podman info
 
+      # Build image
       - name: Build container image
         run: |
           podman build \
             -t localhost/devops-pipeline:${{ github.sha }} \
             .
 
-      - name: List container image
+      # Show image
+      - name: Show container image
         run: |
           podman images | grep devops-pipeline
 
+      # Test container
       - name: Run container test
         run: |
           podman run --rm \
             localhost/devops-pipeline:${{ github.sha }}
+
+
+  # ==========================================
+  # 5. Trivy Container Image Scan
+  # ==========================================
+  container_scan:
+    name: Trivy Container Image Scan
+    needs: container
+    runs-on: [self-hosted, Linux, X64]
+
+    steps:
+      # Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Check Trivy
+      - name: Check Trivy
+        run: |
+          trivy --version
+
+      # Scan container image
+      - name: Scan container image
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            localhost/devops-pipeline:${{ github.sha }}
+
+
+  # ==========================================
+  # 6. Push Image to Docker Hub
+  # ==========================================
+  push:
+    name: Push Image to Docker Hub
+    needs: container_scan
+    runs-on: [self-hosted, Linux, X64]
+
+    steps:
+
+      # Login to Docker Hub
+      - name: Login to Docker Hub
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          echo "$DOCKERHUB_TOKEN" | podman login docker.io \
+            --username "$DOCKERHUB_USERNAME" \
+            --password-stdin
+
+      # Tag image with Git commit SHA and latest
+      - name: Tag image
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          podman tag \
+            localhost/devops-pipeline:${{ github.sha }} \
+            docker.io/$DOCKERHUB_USERNAME/my-repository:${{ github.sha }}
+
+          podman tag \
+            localhost/devops-pipeline:${{ github.sha }} \
+            docker.io/$DOCKERHUB_USERNAME/my-repository:latest
+
+      # Show tags
+      - name: Show Docker Hub image tags
+        run: |
+          podman images | grep my-repository
+
+      # Push SHA tag
+      - name: Push SHA image
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          podman push \
+            docker.io/$DOCKERHUB_USERNAME/my-repository:${{ github.sha }}
+
+      # Push latest tag
+      - name: Push latest image
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          podman push \
+            docker.io/$DOCKERHUB_USERNAME/my-repository:latest
+
+      # Logout
+      - name: Logout from Docker Hub
+        run: |
+          podman logout docker.io
