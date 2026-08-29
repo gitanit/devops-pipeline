@@ -1,4 +1,3 @@
-```yaml
 name: DevOps CI Pipeline
 
 on:
@@ -113,4 +112,3 @@ jobs:
           scan-ref: "."
           severity: "HIGH,CRITICAL"
           ignore-unfixed: true
-```
