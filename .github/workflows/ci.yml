@@ -1,3 +1,4 @@
+```yaml
 name: DevOps CI Pipeline
 
 on:
@@ -76,18 +77,18 @@ jobs:
       - name: Test with Pytest
         run: |
           pytest
-      # 7. Security Scan
+
   sonarqube:
     name: SonarQube Analysis
     needs: build
     runs-on: self-hosted
 
     steps:
-      # 1. Checkout repository
+      # 7. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Run SonarScanner
+      # 8. Run SonarScanner
       - name: SonarQube Scan
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -100,11 +101,11 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # 1. Checkout repository
+      # 9. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Trivy filesystem scan
+      # 10. Trivy filesystem scan
       - name: Security Scan with Trivy
         uses: aquasecurity/trivy-action@0.36.0
         with:
@@ -112,3 +113,4 @@ jobs:
           scan-ref: "."
           severity: "HIGH,CRITICAL"
           ignore-unfixed: true
+```
