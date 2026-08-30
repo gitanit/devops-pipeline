@@ -162,10 +162,52 @@ jobs:
         run: |
           podman images | grep devops-pipeline
 
+      # ----------------------------------------
+      # Test the running container
+      # ----------------------------------------
       - name: Test container
         run: |
-          podman run --rm \
+          set -e
+
+          CONTAINER_NAME=devops-pipeline-test
+
+          echo "Cleaning up any previous test container..."
+          podman rm -f "$CONTAINER_NAME" 2>/dev/null || true
+
+          echo "Starting container..."
+
+          podman run -d \
+            --name "$CONTAINER_NAME" \
+            -p 127.0.0.1:18080:8080 \
             localhost/devops-pipeline:${{ github.sha }}
+
+          echo "Waiting for application..."
+
+          for i in {1..30}; do
+            if curl -fs http://127.0.0.1:18080; then
+              echo
+              echo "Container test passed!"
+
+              echo "Container logs:"
+              podman logs "$CONTAINER_NAME"
+
+              podman rm -f "$CONTAINER_NAME"
+
+              exit 0
+            fi
+
+            echo "Attempt $i: application not ready yet..."
+            sleep 1
+          done
+
+          echo "Container test failed!"
+
+          echo "Container logs:"
+          podman logs "$CONTAINER_NAME" || true
+
+          podman rm -f "$CONTAINER_NAME" || true
+
+          exit 1
 
 
   # ==========================================
@@ -200,7 +242,7 @@ jobs:
     steps:
 
       # ----------------------------------------
-      # Verify secrets exist without exposing them
+      # Verify Docker Hub secrets
       # ----------------------------------------
       - name: Check Docker Hub credentials
         env:
@@ -220,8 +262,9 @@ jobs:
           echo "Docker Hub username is configured"
           echo "Docker Hub token is configured"
 
+
       # ----------------------------------------
-      # Login
+      # Login to Docker Hub
       # ----------------------------------------
       - name: Login to Docker Hub
         env:
@@ -231,6 +274,7 @@ jobs:
           echo "$DOCKERHUB_TOKEN" | podman login docker.io \
             --username "$DOCKERHUB_USERNAME" \
             --password-stdin
+
 
       # ----------------------------------------
       # Tag image
@@ -247,12 +291,14 @@ jobs:
             localhost/devops-pipeline:${{ github.sha }} \
             docker.io/$DOCKERHUB_USERNAME/my-repository:latest
 
+
       # ----------------------------------------
-      # Show tags
+      # Show Docker Hub image
       # ----------------------------------------
       - name: Show Docker Hub image
         run: |
           podman images | grep my-repository
+
 
       # ----------------------------------------
       # Push commit SHA image
@@ -264,6 +310,7 @@ jobs:
           podman push \
             docker.io/$DOCKERHUB_USERNAME/my-repository:${{ github.sha }}
 
+
       # ----------------------------------------
       # Push latest image
       # ----------------------------------------
@@ -273,6 +320,7 @@ jobs:
         run: |
           podman push \
             docker.io/$DOCKERHUB_USERNAME/my-repository:latest
+
 
       # ----------------------------------------
       # Logout
