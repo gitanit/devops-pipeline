@@ -4,7 +4,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 class DevOpsHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         response = """Hello from DevOps Pipeline!
-Version 2 of the application
+Version 3 of the application
 """
 
         self.send_response(200)
