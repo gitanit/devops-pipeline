@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-pipeline
+  namespace: devops-pipeline
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: devops-pipeline
+  template:
+    metadata:
+      labels:
+        app: devops-pipeline
+    spec:
+      imagePullSecrets:
+        - name: dockerhub-secret
+      containers:
+        - name: devops-pipeline
+          image: docker.io/dockeranit/my-repository:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
